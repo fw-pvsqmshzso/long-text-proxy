@@ -1,0 +1,16 @@
+version: "3.8"
+services:
+  long-text-proxy:
+    build: .
+    image: long-text-proxy:0.1.0
+    container_name: long-text-proxy
+    restart: unless-stopped
+    ports:
+      - "${LISTEN_PORT:-8787}:8787"
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8787/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3

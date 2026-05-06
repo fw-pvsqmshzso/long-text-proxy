@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Long Text Proxy</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+
+.bg {
+  position: fixed; inset: 0;
+  background: url('/bg.jpg') center center / cover no-repeat;
+  z-index: 0;
+}
+.bg::after {
+  content: ''; position: absolute; inset: 0;
+  background: rgba(0,0,0,0.35);
+}
+
+/* 移动端：背景聚焦中间，压暗更多 */
+@media (max-width: 768px) {
+  .bg {
+    background-position: center 30%;
+    filter: blur(3px);
+  }
+  .bg::after {
+    background: rgba(0,0,0,0.55);
+  }
+}
+
+.card {
+  position: relative; z-index: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  width: 100%; height: 100%; padding: 20px;
+}
+
+.card-inner {
+  background: rgba(255,255,255,0.18);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255,255,255,0.3);
+  border-radius: 20px;
+  padding: 36px 32px 28px;
+  width: 100%; max-width: 460px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.25);
+}
+
+.title {
+  color: #fff; font-size: 20px; font-weight: 600; text-align: center;
+  margin-bottom: 24px; text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.field { margin-bottom: 16px; }
+.field label {
+  display: block; color: rgba(255,255,255,0.85); font-size: 13px;
+  margin-bottom: 6px; font-weight: 500;
+}
+.field input {
+  width: 100%; padding: 12px 14px; border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 10px; background: rgba(255,255,255,0.12); color: #fff;
+  font-size: 14px; outline: none; transition: border-color 0.2s;
+}
+.field input::placeholder { color: rgba(255,255,255,0.4); }
+.field input:focus { border-color: rgba(255,255,255,0.6); }
+
+.secret-input-wrap { position: relative; }
+.secret-input-wrap input { padding-right: 64px; }
+.secret-toggle {
+  position: absolute; right: 7px; top: 50%; transform: translateY(-50%);
+  border: 1px solid rgba(255,255,255,0.22); border-radius: 7px;
+  background: rgba(255,255,255,0.14); color: rgba(255,255,255,0.86);
+  font-size: 11px; padding: 5px 8px; cursor: pointer;
+}
+.secret-toggle:hover { background: rgba(255,255,255,0.24); }
+.result-toggle { right: 58px; }
+.secret-val { padding-right: 106px !important; }
+
+.field .hint {
+  color: rgba(255,255,255,0.55); font-size: 11px; margin-top: 4px;
+}
+
+.btn {
+  width: 100%; padding: 12px; border: none; border-radius: 10px;
+  font-size: 15px; font-weight: 600; cursor: pointer;
+  transition: all 0.2s; margin-top: 4px;
+}
+.btn-primary {
+  background: rgba(255,255,255,0.25); color: #fff;
+  border: 1px solid rgba(255,255,255,0.3);
+}
+.btn-primary:hover { background: rgba(255,255,255,0.35); }
+.btn-primary:disabled {
+  opacity: 0.4; cursor: not-allowed;
+}
+.btn-generate {
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  color: #fff; border: none; margin-top: 12px;
+}
+.btn-generate:hover { opacity: 0.9; }
+.btn-generate:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* 模型列表 */
+.model-section { margin-top: 8px; }
+.model-section .label {
+  color: rgba(255,255,255,0.85); font-size: 13px; font-weight: 500;
+  margin-bottom: 8px;
+}
+.model-list {
+  max-height: 180px; overflow-y: auto; display: flex; flex-wrap: wrap; gap: 6px;
+  padding: 4px;
+}
+.model-list::-webkit-scrollbar { width: 4px; }
+.model-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 2px; }
+
+.model-tag {
+  padding: 6px 12px; border-radius: 8px; font-size: 12px; cursor: pointer;
+  background: rgba(255,255,255,0.1); color: rgba(255,255,255,0.8);
+  border: 1px solid rgba(255,255,255,0.15); transition: all 0.15s;
+  word-break: break-all;
+}
+.model-tag:hover { background: rgba(255,255,255,0.2); }
+.model-tag.selected {
+  background: rgba(102,126,234,0.5); border-color: rgba(102,126,234,0.8);
+  color: #fff;
+}
+
+/* 结果 */
+.result {
+  margin-top: 16px; padding: 14px; border-radius: 10px;
+  background: rgba(0,0,0,0.2); border: 1px solid rgba(255,255,255,0.1);
+  display: none;
+}
+.result.show { display: block; }
+.result .item { margin-bottom: 10px; }
+.result .item:last-child { margin-bottom: 0; }
+.result .item label {
+  color: rgba(255,255,255,0.6); font-size: 11px; display: block; margin-bottom: 3px;
+}
+.result .item .val {
+  color: #fff; font-size: 13px; font-family: "SF Mono", "Fira Code", monospace;
+  word-break: break-all; padding: 8px 10px; background: rgba(0,0,0,0.2);
+  border-radius: 6px; cursor: pointer; position: relative;
+  transition: background 0.2s;
+}
+.result .item .val:hover { background: rgba(0,0,0,0.35); }
+.result .item .val .copy-hint {
+  position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+  font-size: 10px; color: rgba(255,255,255,0.4); font-family: -apple-system, sans-serif;
+}
+
+/* 教程按钮 */
+.tutorial-btn {
+  position: fixed; top: 20px; right: 20px; z-index: 10;
+  width: 36px; height: 36px; border-radius: 50%;
+  background: rgba(255,255,255,0.15); backdrop-filter: blur(10px);
+  border: 1px solid rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.7); font-size: 18px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+}
+.tutorial-btn:hover { background: rgba(255,255,255,0.25); color: #fff; }
+.tutorial-label {
+  position: fixed; top: 27px; right: 64px; z-index: 10;
+  color: #111; font-size: 13px; font-weight: 700;
+  text-shadow: 0 1px 8px rgba(255,255,255,0.45);
+  user-select: none;
+}
+.modal h3 { margin: 18px 0 8px; color: #fff; font-size: 15px; }
+.modal .limit-note { color: rgba(255,255,255,0.72); }
+.modal .ps-note { color: #ffd8eb; }
+.modal code { color: #fff; background: rgba(255,255,255,0.1); padding: 1px 4px; border-radius: 4px; }
+
+/* 教程弹窗 */
+.modal-overlay {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  display: none; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal-overlay.show { display: flex; }
+
+.modal {
+  background: rgba(30,30,30,0.92); backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,0.15); border-radius: 16px;
+  padding: 28px 24px; max-width: 500px; width: 100%;
+  max-height: 80vh; overflow-y: auto; color: rgba(255,255,255,0.85);
+  font-size: 14px; line-height: 1.7;
+}
+.modal h2 { font-size: 17px; margin-bottom: 16px; color: #fff; }
+.modal p { margin-bottom: 12px; }
+.modal .close-btn {
+  float: right; background: none; border: none; color: rgba(255,255,255,0.5);
+  font-size: 22px; cursor: pointer; line-height: 1;
+}
+.modal .close-btn:hover { color: #fff; }
+
+/* loading spinner */
+.spinner {
+  display: inline-block; width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+  border-radius: 50%; animation: spin 0.6s linear infinite;
+  vertical-align: middle; margin-right: 6px;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.error-msg {
+  color: #ff6b6b; font-size: 12px; margin-top: 6px; display: none;
+}
+.error-msg.show { display: block; }
+</style>
+</head>
+<body>
+
+<div class="bg"></div>
+
+<!-- 教程按钮 -->
+<span class="tutorial-label">关于本代理</span>
+<button class="tutorial-btn" onclick="toggleTutorial()">?</button>
+
+<!-- 教程弹窗 -->
+<div class="modal-overlay" id="tutorialModal" onclick="if(event.target===this)toggleTutorial()">
+  <div class="modal">
+    <button class="close-btn" onclick="toggleTutorial()">&times;</button>
+    <h2>关于本代理</h2>
+
+    <h3>Q：这是个玩意儿？</h3>
+    <p>A：有的渠道 Claude 限制输入 10000，用上这个后随便你怎么输入都行，实测酒馆 10 万总 token 情况非常正常，按道理总 token 还能更高，上下文应该是十几万，懒得自己测试。无降智 / 不看世界书 or 预设 / 被截断 / 拒绝按照提示词要求回复 的情况。</p>
+
+    <h3>Q：那 AI 咋知道上下文什么时候该回复呢？万一 AI 傻了，不知道自己处于哪一段呢？</h3>
+    <p>A：不可能，加了一堆东西避免，但是解释出来没啥意义，用就完事儿了。</p>
+
+    <h3>Q：为啥呀，咋做到的？</h3>
+    <p>A：原理只是把单 role 拆成多 role。此代理做的事情为：将用户 / 角色 / 系统提示词三类消息分别加上前缀后，按照顺序（正常在酒馆使用 API 的时候上游收到的总 token 是什么顺序的请求，这边也一模一样）拍扁到一起，每 2000-2500 token 分成一条 user 消息，插入一条假的 ass 消息，同时计数 x/y，保证 AI 明白回复时机和应该回复内容，提示词和内置正则保证 AI 不会输出废话。</p>
+    <p>此流程为静默发生，最终效果和正常渠道基本上调用是一样的，实际 API 调用只有一次，AI 依旧是一次性看完你发的几万或者十几万上下文然后正常回复，并且知道最新输出和历史上下文的区别。能分清楚系统提示词，能知道哪些是自己的回复。不会因为拆成多 role 产生多余时间（最多 2 秒吧），如果时间久，那是上游问题，和此代理无关 ❤️</p>
+
+    <h3>限制</h3>
+    <p class="limit-note">输入无限制。输出的话，如果 AI 一次性回复超过 9000 字符（正常玩酒馆的话不会超过，自己看一下你平常收到的 AI 回复的单条 token 数量）会被代理优雅截断，按通用流程当做上一条上下文让 AI 继续回复完。这个是真救不了，尽可能一次性不要超过 9000 字符。</p>
+
+    <h3>PS</h3>
+    <p class="ps-note">酒馆总 token 10w 实测下来，AI 从生成的第一个字开始就完全按照酒馆的预设提示词代入身份在编写了，和调用正常渠道 API 的使用感完全一致。对话了十几轮一切正常，反正总上下文十几万应该 OK。</p>
+  </div>
+</div>
+
+<!-- 主卡片 -->
+<div class="card">
+  <div class="card-inner">
+    <div class="title">Long Text Proxy</div>
+
+    <!-- URL -->
+    <div class="field">
+      <label>原始 API 地址</label>
+      <input type="text" id="upstreamUrl" placeholder="https://api.example.com/v1" autocomplete="off" autocapitalize="off" spellcheck="false">
+      <div class="hint">填你原本渠道给你的 API 地址，例如 https://api.example.com/v1</div>
+    </div>
+
+    <!-- Key -->
+    <div class="field">
+      <label>原始 API Key</label>
+      <div class="secret-input-wrap">
+        <input type="password" id="apiKey" placeholder="sk-...（只粘贴原始 key，带 Bearer 也会自动去掉）" autocomplete="new-password" autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true">
+        <button type="button" class="secret-toggle" onclick="toggleInputSecret('apiKey', this)">显示</button>
+      </div>
+      <div class="hint" id="keyHint">填你原本渠道给你的 API Key。</div>
+      <div class="error-msg" id="fetchError"></div>
+    </div>
+
+    <!-- 验证 & 拉取模型 -->
+    <button class="btn btn-primary" id="fetchBtn" onclick="fetchModels()">验证 & 拉取模型</button>
+
+    <!-- 模型列表 -->
+    <div class="model-section" id="modelSection" style="display:none">
+      <div class="label">选择模型</div>
+      <div class="model-list" id="modelList"></div>
+    </div>
+
+    <!-- 生成 -->
+    <button class="btn btn-generate" id="generateBtn" onclick="generateKey()" style="display:none" disabled>生成代理 Key</button>
+    <div class="hint" id="addressHint">点击按钮，若 key 和 URL 正确，拉取模型后出现生成新 key 按钮。</div>
+
+    <!-- 结果 -->
+    <div class="result" id="result">
+      <div class="item">
+        <label>代理地址</label>
+        <div class="val" onclick="copyText(this)"><span id="proxyAddr"></span><span class="copy-hint">点击复制</span></div>
+      </div>
+      <div class="item">
+        <label>代理 Key</label>
+        <div class="val secret-val" onclick="copyText(this)" data-secret-value=""><span id="proxyKey"></span><button type="button" class="secret-toggle result-toggle" onclick="toggleResultSecret(event, this)">显示</button><span class="copy-hint">点击复制</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let selectedModel = null;
+let currentUrl = '';
+let currentKey = '';
+let reachableOrigins = [];
+let preferredProxyOrigin = '';
+
+async function loadReachableOrigins() {
+  try {
+    const resp = await fetch('/api/addresses');
+    const data = await resp.json();
+    reachableOrigins = Array.isArray(data.origins) ? data.origins : [];
+  } catch {
+    reachableOrigins = [];
+  }
+  preferredProxyOrigin = pickProxyOrigin();
+  renderAddressHint();
+}
+
+function pickProxyOrigin() {
+  const current = window.location.origin.replace(/\/+$/, '');
+  const isLoopback = /^(http:\/\/)?(127\.0\.0\.1|localhost)(:\d+)?$/i.test(current.replace(/^https?:\/\//i, ''));
+  if (!isLoopback) return current;
+  return reachableOrigins[0] || current;
+}
+
+function renderAddressHint() {
+  const hint = document.getElementById('addressHint');
+  if (!hint) return;
+  const current = window.location.origin.replace(/\/+$/, '');
+  hint.textContent = `酒馆里填这个 URL：${current}/v1；不要填自己原始的 URL 和 Key，填新生成的。`;
+}
+
+
+loadReachableOrigins();
+
+function normalizeUrl(raw) {
+  return raw
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/(?:v1\/)?(?:chat\/completions|models)$/i, '');
+}
+
+function normalizeKey(raw) {
+  return raw.trim().replace(/^Bearer\s+/i, '').trim();
+}
+
+async function fetchModels() {
+  const urlInput = document.getElementById('upstreamUrl');
+  const keyInput = document.getElementById('apiKey');
+  const btn = document.getElementById('fetchBtn');
+  const errEl = document.getElementById('fetchError');
+
+  const url = normalizeUrl(urlInput.value);
+  const key = normalizeKey(keyInput.value);
+  urlInput.value = url;
+  keyInput.value = key;
+  updateKeyHint(key);
+  if (!url || !key) { showError('请填写 URL 和 Key'); return; }
+
+  currentUrl = url;
+  currentKey = key;
+  selectedModel = null;
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>验证中...';
+  hideError();
+  document.getElementById('modelSection').style.display = 'none';
+  document.getElementById('generateBtn').style.display = 'none';
+  document.getElementById('result').classList.remove('show');
+
+  try {
+    const resp = await fetch('/api/models', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: currentUrl, key: currentKey }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) {
+      throw new Error(data.error || '验证失败，请检查 URL 是否为 OpenAI 兼容接口地址、Key 是否完整');
+    }
+    if (!data.models || data.models.length === 0) {
+      throw new Error('未获取到任何模型');
+    }
+    renderModels(data.models);
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '验证 & 拉取模型';
+  }
+}
+
+function renderModels(models) {
+  const list = document.getElementById('modelList');
+  const section = document.getElementById('modelSection');
+  const genBtn = document.getElementById('generateBtn');
+
+  list.innerHTML = '';
+  selectedModel = null;
+  genBtn.style.display = 'block';
+  genBtn.disabled = true;
+
+  models.forEach((m, index) => {
+    const tag = document.createElement('div');
+    tag.className = 'model-tag';
+    tag.textContent = m;
+    tag.onclick = () => selectModelTag(tag, m);
+    list.appendChild(tag);
+    if (models.length === 1 || index === 0) selectModelTag(tag, m);
+  });
+
+  section.style.display = 'block';
+}
+
+function selectModelTag(tag, model) {
+  document.querySelectorAll('.model-tag').forEach(t => t.classList.remove('selected'));
+  tag.classList.add('selected');
+  selectedModel = model;
+  document.getElementById('generateBtn').disabled = false;
+}
+
+async function generateKey() {
+  if (!selectedModel || !currentUrl || !currentKey) return;
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>生成中...';
+
+  try {
+    const resp = await fetch('/api/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: currentUrl, key: currentKey, model: selectedModel }),
+    });
+    const data = await resp.json();
+    if (!resp.ok || data.error) throw new Error(data.error || '生成失败');
+
+    preferredProxyOrigin = pickProxyOrigin();
+    document.getElementById('proxyAddr').textContent = `${preferredProxyOrigin}/v1`;
+    const proxyKeyBox = document.querySelector('.secret-val');
+    if (proxyKeyBox) proxyKeyBox.dataset.secretValue = data.proxyKey;
+    document.getElementById('proxyKey').textContent = maskKey(data.proxyKey);
+    document.getElementById('result').classList.add('show');
+  } catch (err) {
+    showError(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '生成代理 Key';
+  }
+}
+
+function copyText(el) {
+  const text = el.dataset.secretValue || el.querySelector('span:first-child').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const hint = el.querySelector('.copy-hint');
+    const orig = hint.textContent;
+    hint.textContent = '已复制!';
+    setTimeout(() => hint.textContent = orig, 1500);
+  });
+}
+
+
+function toggleInputSecret(inputId, button) {
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  button.textContent = show ? '隐藏' : '显示';
+}
+
+function toggleResultSecret(event, button) {
+  event.stopPropagation();
+  const box = button.closest('.secret-val');
+  const span = document.getElementById('proxyKey');
+  const secret = box?.dataset.secretValue || '';
+  if (!box || !span || !secret) return;
+  const show = box.dataset.revealed !== 'true';
+  box.dataset.revealed = String(show);
+  span.textContent = show ? secret : maskKey(secret);
+  button.textContent = show ? '隐藏' : '显示';
+}
+
+function maskKey(key) {
+  if (!key) return '未填写';
+  if (key.length <= 12) return `${key.slice(0, 4)}…（${key.length}位）`;
+  return `${key.slice(0, 8)}…${key.slice(-4)}（${key.length}位）`;
+}
+
+function updateKeyHint(key) {
+  const hint = document.getElementById('keyHint');
+  if (hint) hint.textContent = `将提交的 Key：${maskKey(key)}；如果这里不像你的 sk- 开头 key，说明浏览器自动填错了。`;
+}
+
+document.getElementById('apiKey')?.addEventListener('input', (event) => {
+  updateKeyHint(normalizeKey(event.target.value));
+});
+
+function showError(msg) {
+  const el = document.getElementById('fetchError');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function hideError() {
+  document.getElementById('fetchError').classList.remove('show');
+}
+
+function toggleTutorial() {
+  document.getElementById('tutorialModal').classList.toggle('show');
+}
+</script>
+</body>
+</html>

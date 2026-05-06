@@ -1,0 +1,12 @@
+node_modules/
+data.db
+data.db-wal
+data.db-shm
+.env
+
+# local edit backups
+*.bak-before-*
+
+# OS / editor
+.DS_Store
+*.swp
