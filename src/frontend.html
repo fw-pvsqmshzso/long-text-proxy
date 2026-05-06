@@ -321,8 +321,8 @@ function pickProxyOrigin() {
 function renderAddressHint() {
   const hint = document.getElementById('addressHint');
   if (!hint) return;
-  const current = window.location.origin.replace(/\/+$/, '');
-  hint.textContent = `酒馆里填这个 URL：${current}/v1；不要填自己原始的 URL 和 Key，填新生成的。`;
+  preferredProxyOrigin = pickProxyOrigin();
+  hint.textContent = `酒馆里填这个 URL：${preferredProxyOrigin}/v1；不要填自己原始的 URL 和 Key，填新生成的。`;
 }
 
 
