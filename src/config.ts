@@ -17,10 +17,13 @@ function bool(name: string, def: boolean): boolean {
     return v === "1" || v.toLowerCase() === "true"
 }
 
+const DEFAULT_UPSTREAM_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+
 export const config = {
     UPSTREAM_BASE_URL: str("UPSTREAM_BASE_URL", "").replace(/\/+$/, ""),
     UPSTREAM_API_KEY: str("UPSTREAM_API_KEY", ""),
     UPSTREAM_MODEL: str("UPSTREAM_MODEL", ""),
+    UPSTREAM_USER_AGENT: str("UPSTREAM_USER_AGENT", DEFAULT_UPSTREAM_USER_AGENT),
     LISTEN_PORT: num("LISTEN_PORT", 8787),
     LISTEN_HOST: str("LISTEN_HOST", "0.0.0.0"),
     AUTH_TOKEN: str("AUTH_TOKEN", ""),

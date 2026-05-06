@@ -1,3 +1,4 @@
+import { config } from "./config"
 import type { ChatMessage } from "./types"
 
 export function normalizeUpstreamBaseUrl(upstreamUrl: string): string {
@@ -35,6 +36,7 @@ export async function callUpstream(
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "User-Agent": config.UPSTREAM_USER_AGENT,
       Authorization: `Bearer ${normalizedKey}`,
     },
     body: JSON.stringify({ ...req, stream: true }),
@@ -53,7 +55,10 @@ export async function fetchModels(upstreamUrl: string, apiKey: string): Promise<
   const normalizedKey = normalizeApiKey(apiKey)
   const modelsUrl = base.endsWith("/v1") ? `${base}/models` : `${base}/v1/models`
   const resp = await fetch(modelsUrl, {
-    headers: { Authorization: `Bearer ${normalizedKey}` },
+    headers: {
+      "User-Agent": config.UPSTREAM_USER_AGENT,
+      Authorization: `Bearer ${normalizedKey}`,
+    },
   })
   if (!resp.ok) {
     const errText = await resp.text().catch(() => "")
